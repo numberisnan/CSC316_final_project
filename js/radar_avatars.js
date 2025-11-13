@@ -46,11 +46,13 @@
     };
     const avg = (arr) => { const a = arr.filter(Number.isFinite); return a.length ? a.reduce((x, y) => x + y, 0) / a.length : NaN; };
 
+
     function severity10(r, S) {
         const vals = [toNum(r[S.stress]), toNum(r[S.anxiety]), toNum(r[S.depression])].filter(Number.isFinite);
         if (!vals.length) return 5;
         return clamp(0, avg(vals), 10); // 0..10 (worse → higher)
     }
+
     function colorByMood(r, S) {
         // green (good) → red (bad)
         const t = clamp(0, severity10(r, S) / 10, 1);
@@ -115,23 +117,54 @@
     // ---------- stick figure (mood-colored) ----------
     function drawWalker(g, nodeDatum) {
         const color = nodeDatum.color;
-        const strokeW = 2;
+        const strokeW = 2.4;                         // slightly thicker
         const body = g.append("g").attr("class", "walker").attr("transform", "scale(0.92)");
 
         const headStrokeColor = d3.interpolateRgb(color, "#333")(0.35);
-        body.append("circle").attr("cx", 0).attr("cy", -18).attr("r", 5.5)
-            .attr("fill", color).attr("stroke", headStrokeColor).attr("stroke-width", strokeW);
+        body.append("circle")
+            .attr("cx", 0)
+            .attr("cy", -20)                         // nudge up a bit
+            .attr("r", 8)                            // ⬅ larger head
+            .attr("fill", color)
+            .attr("stroke", headStrokeColor)
+            .attr("stroke-width", strokeW);
 
-        body.append("line").attr("x1", 0).attr("y1", -12).attr("x2", 0).attr("y2", 16)
-            .attr("stroke", color).attr("stroke-width", strokeW).attr("stroke-linecap", "round");
-        body.append("line").attr("x1", 0).attr("y1", -4).attr("x2", -10).attr("y2", 6)
-            .attr("stroke", color).attr("stroke-width", strokeW).attr("stroke-linecap", "round");
-        body.append("line").attr("x1", 0).attr("y1", -4).attr("x2", 10).attr("y2", 6)
-            .attr("stroke", color).attr("stroke-width", strokeW).attr("stroke-linecap", "round");
-        body.append("line").attr("x1", 0).attr("y1", 16).attr("x2", -9).attr("y2", 28)
-            .attr("stroke", color).attr("stroke-width", strokeW).attr("stroke-linecap", "round");
-        body.append("line").attr("x1", 0).attr("y1", 16).attr("x2", 9).attr("y2", 28)
-            .attr("stroke", color).attr("stroke-width", strokeW).attr("stroke-linecap", "round");
+        body.append("line")
+            .attr("x1", 0).attr("y1", -12)
+            .attr("x2", 0).attr("y2", 18)
+            .attr("stroke", color)
+            .attr("stroke-width", strokeW)
+            .attr("stroke-linecap", "round");
+
+        // arms
+        body.append("line")
+            .attr("x1", 0).attr("y1", -2)
+            .attr("x2", -11).attr("y2", 8)
+            .attr("stroke", color)
+            .attr("stroke-width", strokeW)
+            .attr("stroke-linecap", "round");
+
+        body.append("line")
+            .attr("x1", 0).attr("y1", -2)
+            .attr("x2", 11).attr("y2", 8)
+            .attr("stroke", color)
+            .attr("stroke-width", strokeW)
+            .attr("stroke-linecap", "round");
+
+        // legs
+        body.append("line")
+            .attr("x1", 0).attr("y1", 18)
+            .attr("x2", -9).attr("y2", 30)
+            .attr("stroke", color)
+            .attr("stroke-width", strokeW)
+            .attr("stroke-linecap", "round");
+
+        body.append("line")
+            .attr("x1", 0).attr("y1", 18)
+            .attr("x2", 9).attr("y2", 30)
+            .attr("stroke", color)
+            .attr("stroke-width", strokeW)
+            .attr("stroke-linecap", "round");
     }
 
     // ---------- toolbar ----------
@@ -201,14 +234,31 @@
                 });
             });
 
-        const sel = gNodes.selectAll("g.avatar").data(nodes, d => d.id).join(enter => {
-            const g = enter.append("g").attr("class", "avatar").style("cursor", "pointer");
-            drawWalker(g, enter.datum());
-            g.on("mouseenter", (e, d) => { gOverlay.selectAll("*").remove(); drawMiniRadar(gOverlay, d.x ?? width / 2, d.y ?? height / 2, d.r, S); })
-                .on("mouseleave", () => gOverlay.selectAll("*").remove())
-                .on("click", (e, d) => { gOverlay.selectAll("*").remove(); drawMiniRadar(gOverlay, d.x ?? width / 2, d.y ?? height / 2, d.r, S); });
-            return g;
-        });
+        const sel = gNodes.selectAll("g.avatar")
+            .data(nodes, d => d.id)
+            .join(enter => {
+                const gEnter = enter.append("g")
+                    .attr("class", "avatar")
+                    .style("cursor", "pointer");
+
+                // draw one walker per node with its own color
+                gEnter.each(function (d) {
+                    drawWalker(d3.select(this), d);
+                });
+
+                gEnter
+                    .on("mouseenter", (e, d) => {
+                        gOverlay.selectAll("*").remove();
+                        drawMiniRadar(gOverlay, d.x ?? width / 2, d.y ?? height / 2, d.r, S);
+                    })
+                    .on("mouseleave", () => gOverlay.selectAll("*").remove())
+                    .on("click", (e, d) => {
+                        gOverlay.selectAll("*").remove();
+                        drawMiniRadar(gOverlay, d.x ?? width / 2, d.y ?? height / 2, d.r, S);
+                    });
+
+                return gEnter;
+            });
 
         // subtle target jitter in Roam mode
         d3.interval(() => {
