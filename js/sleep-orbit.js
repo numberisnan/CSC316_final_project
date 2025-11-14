@@ -40,7 +40,7 @@
     {
         name: "Academic Performance",
         column: "academic_performance",
-        min: 1,
+        min: 0,
         max: 5,
         color: "#1e90ff"
     }];

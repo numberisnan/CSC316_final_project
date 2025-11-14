@@ -48,7 +48,7 @@
 
         let time_up = time_up_string.split(" ")[0]; // Get rid of AM/PM
         let is_up_pm = time_up_string.split(" ")[1] === "PM";
-        let time_up_after_8pm = Number(time_up.split(":")[0]) + Number(time_up.split(":")[1]) / 60 + (is_up_pm ? 12 : 0) + 4;
+        let time_up_after_8pm = (Number(time_up.split(":")[0]) % 12) + Number(time_up.split(":")[1]) / 60 + (is_up_pm ? 12 : 0) + 4;
         d.wake_up_time_after_8pm = time_up_after_8pm % 24;
     });
 
