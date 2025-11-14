@@ -1,7 +1,7 @@
-# Balancing the Student Life — CSC316 Final Project (Prototype V1)
+# Balancing the Student Life — CSC316 Final Project (Prototype V2)
 
 **Course:** CSC316 — Data Visualization  
-**Week 8 Submission:** Prototype V1  
+**Week 9 Submission:** Prototype V2  
 **Team:** *Stressly*  
 **Members:**  
 - Cynthia Liu — Visualization Lead  
@@ -56,10 +56,10 @@ A circular, time-based visualization exploring the relationship between **sleep 
 
 ---
 
-### 4. 🧍‍♀️ Stick Figure Map with Spiderchart
+### 4. 🧍‍♀️ Stick Figure Map with RadarMaps
 **File:** `radar_avatars.js`  
 An animated environment where each student is represented as a **stick-figure avatar** tied to their wellness profile.
-- Figures **roam randomly** until a metric (e.g., sleep, exercise, severity) is selected.
+- Figures **roam** until a metric (e.g., sleep, exercise, severity) is selected.
 - On selection, figures **cluster dynamically** based on that variable.
 - Hovering reveals a **radar (spider) chart** showing:
     - Stress
@@ -67,7 +67,7 @@ An animated environment where each student is represented as a **stick-figure av
     - Exercise
     - Depression
     - Anxiety
-- **Planned:** color-code avatars by stress level and link them with other visualizations.
+- ***Improvements based on TA feedback:** added a scrolling feature which spreads out the stick figures after they are sorted based on metric to easily hover over each without overlapping. Made the head sizes larger and implemented the colour depending on stress severity*
 - **Insight:** humanizes data — students are no longer points, but individuals with multidimensional traits.
 
 ---
@@ -126,18 +126,20 @@ All numeric columns were normalized for the triangle view.
 
 ## 💻 File Structure
 ```
-index.html
 css/
  └── style.css
-js/
- ├── main.js
- ├── ternary.js
- ├── garden.js
- └── utils.js
-data/
+ data/
  └── cleaned_data.csv
-assets/
- └── screenshots/
+js/
+ ├── classroom.js
+ ├── garden.js
+ ├── main.js
+ ├── radar_avatars.js
+ ├── sleep-orbit.js
+ ├── ternary.js
+ └── utils.js
+font/...
+index.html
 README.md
 ```
 
