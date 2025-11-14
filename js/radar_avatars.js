@@ -46,7 +46,6 @@
     };
     const avg = (arr) => { const a = arr.filter(Number.isFinite); return a.length ? a.reduce((x, y) => x + y, 0) / a.length : NaN; };
 
-
     function severity10(r, S) {
         const vals = [toNum(r[S.stress]), toNum(r[S.anxiety]), toNum(r[S.depression])].filter(Number.isFinite);
         if (!vals.length) return 5;
@@ -82,11 +81,11 @@
         return { width, height: lockedHeight, lockedHeight };
     }
 
-    // ---------- mini spider chart ----------
+    // ---------- mini spider chart (bigger) ----------
     function drawMiniRadar(gOverlay, x, y, row, S) {
         const color = colorByMood(row, S);
         const metrics = metricsForRow(row, S);
-        const R = 60;
+        const R = 90; // bigger than original 60
         const angle = d3.scaleLinear().domain([0, metrics.length]).range([0, 2 * Math.PI]);
         const radial = (v, i) => { const a = angle(i) - Math.PI / 2, rr = v * R; return [Math.cos(a) * rr, Math.sin(a) * rr]; };
         const pathFn = d3.line().x(d => d[0]).y(d => d[1]).curve(d3.curveLinearClosed);
@@ -94,37 +93,45 @@
         gOverlay.selectAll("*").remove();
         const grp = gOverlay.append("g").attr("transform", `translate(${x},${y})`).style("pointer-events", "none");
 
-        grp.append("circle").attr("r", R + 8).attr("fill", "rgba(255,255,255,0.94)").attr("stroke", "rgba(0,0,0,0.08)").attr("stroke-width", 1.5);
-        for (let i = 1; i <= 4; i++) grp.append("circle").attr("r", (R / 4) * i).attr("fill", "none").attr("stroke", "#444").attr("opacity", 0.15);
+        grp.append("circle")
+            .attr("r", R + 12)
+            .attr("fill", "rgba(255,255,255,0.96)")
+            .attr("stroke", "rgba(0,0,0,0.08)")
+            .attr("stroke-width", 1.6);
+        for (let i = 1; i <= 4; i++) grp.append("circle")
+            .attr("r", (R / 4) * i)
+            .attr("fill", "none")
+            .attr("stroke", "#444")
+            .attr("opacity", 0.14);
         metrics.forEach((m, i) => {
             const a = angle(i) - Math.PI / 2, xx = Math.cos(a) * R, yy = Math.sin(a) * R;
-            grp.append("line").attr("x1", 0).attr("y1", 0).attr("x2", xx).attr("y2", yy).attr("stroke", "#444").attr("opacity", 0.18);
+            grp.append("line").attr("x1", 0).attr("y1", 0).attr("x2", xx).attr("y2", yy).attr("stroke", "#444").attr("opacity", 0.16);
         });
 
         grp.append("path")
             .attr("d", pathFn(metrics.map((m, i) => radial(m.v, i))))
-            .attr("fill", color).attr("fill-opacity", 0.28)
-            .attr("stroke", color).attr("stroke-width", 2);
+            .attr("fill", color).attr("fill-opacity", 0.30)
+            .attr("stroke", color).attr("stroke-width", 2.2);
 
         metrics.forEach((m, i) => {
-            const a = angle(i) - Math.PI / 2, rr = R + 10;
+            const a = angle(i) - Math.PI / 2, rr = R + 16;
             grp.append("text").attr("x", Math.cos(a) * rr).attr("y", Math.sin(a) * rr)
                 .attr("text-anchor", "middle").attr("dominant-baseline", "middle")
-                .attr("font-size", 9).attr("fill", "#222").text(m.label.split(" ")[0]);
+                .attr("font-size", 10.5).attr("fill", "#222").text(m.label.split(" ")[0]);
         });
     }
 
     // ---------- stick figure (mood-colored) ----------
     function drawWalker(g, nodeDatum) {
         const color = nodeDatum.color;
-        const strokeW = 2.4;                         // slightly thicker
+        const strokeW = 2.4;
         const body = g.append("g").attr("class", "walker").attr("transform", "scale(0.92)");
 
         const headStrokeColor = d3.interpolateRgb(color, "#333")(0.35);
         body.append("circle")
             .attr("cx", 0)
-            .attr("cy", -20)                         // nudge up a bit
-            .attr("r", 8)                            // ⬅ larger head
+            .attr("cy", -20)
+            .attr("r", 8)
             .attr("fill", color)
             .attr("stroke", headStrokeColor)
             .attr("stroke-width", strokeW);
@@ -212,45 +219,61 @@
         const PAD = 18, COLLIDE_R = 12, ROAM_STRENGTH = 0.06;
         const N = Math.min(rows.length, 250);
         const nodes = d3shuffle(rows).slice(0, N).map((r, i) => ({
-            id: i, r, color: colorByMood(r, S), tx: 0, ty: 0, hovered: false
+            id: i, r, color: colorByMood(r, S), tx: 0, ty: 0, hovered: false, x: 0, y: 0
         }));
 
         const bounds = { left: PAD, right: width - PAD, top: PAD, bottom: height - PAD };
-        nodes.forEach(n => { n.tx = rand(bounds.left, bounds.right); n.ty = rand(bounds.top, bounds.bottom); });
+        nodes.forEach(n => {
+            n.tx = rand(bounds.left, bounds.right);
+            n.ty = rand(bounds.top, bounds.bottom);
+            n.x = n.tx;
+            n.y = n.ty;
+        });
 
-        sim?.stop();
-        sim = d3.forceSimulation(nodes)
-            .velocityDecay(0.25)
-            .force("charge", d3.forceManyBody().strength(-6))
-            .force("collide", d3.forceCollide().radius(COLLIDE_R).iterations(2))
-            .force("x", d3.forceX(d => d.tx).strength(ROAM_STRENGTH))
-            .force("y", d3.forceY(d => d.ty).strength(ROAM_STRENGTH))
-            .alpha(1).alphaDecay(0.02)
-            .on("tick", () => {
-                gNodes.selectAll("g.avatar").attr("transform", d => {
-                    d.x = within(d.x ?? width / 2, bounds.left, bounds.right);
-                    d.y = within(d.y ?? height / 2, bounds.top, bounds.bottom);
-                    const s = d.hovered ? 1.25 : 1;
-                    return `translate(${d.x},${d.y})`;
+        // "Zoom" factor that controls vertical spacing in sorted layouts
+        let spacingFactor = 1;
+
+        function startRoamSim() {
+            if (sim) sim.stop();
+            sim = d3.forceSimulation(nodes)
+                .velocityDecay(0.25)
+                .force("charge", d3.forceManyBody().strength(-6))
+                .force("collide", d3.forceCollide().radius(COLLIDE_R).iterations(2))
+                .force("x", d3.forceX(d => d.tx).strength(ROAM_STRENGTH))
+                .force("y", d3.forceY(d => d.ty).strength(ROAM_STRENGTH))
+                .alpha(1).alphaDecay(0.02)
+                .on("tick", () => {
+                    if (currentMode !== "roam") return;
+                    gNodes.selectAll("g.avatar").attr("transform", d => {
+                        d.x = within(d.x ?? width / 2, bounds.left, bounds.right);
+                        d.y = within(d.y ?? height / 2, bounds.top, bounds.bottom);
+                        const s = d.hovered ? 1.25 : 1;
+                        return `translate(${d.x},${d.y}) scale(${s})`;
+                    });
                 });
-            });
+        }
 
         function setHover(activeId = null) {
-            nodes.forEach(n => {
-                n.hovered = (activeId !== null && n.id === activeId);
-            });
+            nodes.forEach(n => { n.hovered = (activeId !== null && n.id === activeId); });
 
             gNodes.selectAll("g.avatar")
                 .transition().duration(180)
-                .style("opacity", d => (activeId === null || d.id === activeId) ? 1 : 0.15);
+                .style("opacity", d => (activeId === null || d.id === activeId) ? 1 : 0.15)
+                .attr("transform", d => {
+                    const s = d.hovered ? 1.25 : 1;
+                    return `translate(${d.x},${d.y}) scale(${s})`;
+                });
 
-            sim.alpha(0.3).restart();
+            if (currentMode === "roam" && sim) {
+                sim.alpha(0.3).restart();
+            }
         }
+
         function drawStressRipple(d) {
             const cx = d.x ?? width / 2;
             const cy = d.y ?? height / 2;
             const sev = severity10(d.r, S); // 0–10
-            const maxR = 35 + sev * 4;      // bigger ring for higher severity
+            const maxR = 35 + sev * 4;
 
             const ripple = gOverlay.append("circle")
                 .attr("cx", cx)
@@ -268,33 +291,33 @@
                 .attr("opacity", 0)
                 .remove();
         }
-        const sel = gNodes.selectAll("g.avatar")
+
+        gNodes.selectAll("g.avatar")
             .data(nodes, d => d.id)
             .join(enter => {
                 const gEnter = enter.append("g")
                     .attr("class", "avatar")
                     .style("cursor", "pointer");
 
-                // draw one walker per node with its own color
                 gEnter.each(function (d) {
                     drawWalker(d3.select(this), d);
                 });
 
                 gEnter
                     .on("mouseenter", (e, d) => {
-                        setHover(d.id);                     // spotlight & scale
+                        setHover(d.id);
                         gOverlay.selectAll("*").remove();
                         drawMiniRadar(gOverlay, d.x ?? width / 2, d.y ?? height / 2, d.r, S);
                     })
                     .on("mouseleave", () => {
-                        setHover(null);                     // reset
+                        setHover(null);
                         gOverlay.selectAll("*").remove();
                     })
                     .on("click", (e, d) => {
-                        setHover(d.id);                     // keep them highlighted
+                        setHover(d.id);
                         gOverlay.selectAll("*").remove();
                         drawMiniRadar(gOverlay, d.x ?? width / 2, d.y ?? height / 2, d.r, S);
-                        drawStressRipple(d);                // NEW: ripple
+                        drawStressRipple(d);
                     });
 
                 return gEnter;
@@ -302,7 +325,7 @@
 
         // subtle target jitter in Roam mode
         d3.interval(() => {
-            if (currentMode !== "roam") return;
+            if (currentMode !== "roam" || !sim) return;
             nodes.forEach(n => {
                 if (Math.random() < 0.5) {
                     const j = 90;
@@ -323,24 +346,24 @@
                 svg.attr("width", newW).attr("height", lockedHeight);
                 bounds.right = newW - PAD;
                 nodes.forEach(n => { n.tx = within(n.tx, bounds.left, bounds.right); });
-                sim.force("x", d3.forceX(d => d.tx).strength(ROAM_STRENGTH));
-                sim.alpha(0.4).restart();
+                if (currentMode === "roam" && sim) {
+                    sim.force("x", d3.forceX(d => d.tx).strength(ROAM_STRENGTH));
+                    sim.alpha(0.4).restart();
+                }
             });
             _ro.observe(document.querySelector(containerSel));
         }
 
-        // ----- layout switching -----
+        // ----- metric axis -----
         function drawMetricScale(xScale, label) {
             gOverlay.selectAll("*").remove();
             const axisY = height - 24;
 
-            // Axis line + ticks
             const axis = d3.axisBottom(xScale).ticks(6).tickSizeOuter(0);
             const gAxis = gOverlay.append("g").attr("transform", `translate(0,${axisY})`).call(axis);
             gAxis.selectAll("path, line").attr("stroke", "rgba(0,0,0,0.35)");
             gAxis.selectAll("text").attr("fill", "#2b2116").attr("font-size", 11);
 
-            // Title
             gOverlay.append("text")
                 .attr("x", (xScale.range()[0] + xScale.range()[1]) / 2)
                 .attr("y", axisY - 10)
@@ -350,20 +373,22 @@
                 .text(label);
         }
 
+        // ----- layout switching -----
         function setMode(mode) {
             currentMode = mode;
             gOverlay.selectAll("*").remove();
 
-            sim.force("charge", d3.forceManyBody().strength(-6));
-            sim.force("collide", d3.forceCollide().radius(COLLIDE_R).iterations(2));
-
             if (mode === "roam") {
-                nodes.forEach(n => { n.tx = rand(bounds.left, bounds.right); n.ty = rand(bounds.top, bounds.bottom); });
-                sim.force("x", d3.forceX(d => d.tx).strength(ROAM_STRENGTH));
-                sim.force("y", d3.forceY(d => d.ty).strength(ROAM_STRENGTH));
-                sim.alpha(0.8).restart();
+                nodes.forEach(n => {
+                    n.tx = rand(bounds.left, bounds.right);
+                    n.ty = rand(bounds.top, bounds.bottom);
+                });
+                startRoamSim();
                 return;
             }
+
+            // stop simulation in sorted layouts to remove jitter
+            if (sim) sim.stop();
 
             const lineBy = (getter, label) => {
                 const vals = nodes.map(n => getter(n.r)).filter(Number.isFinite);
@@ -371,11 +396,58 @@
                 const max = d3.max(vals) ?? 1;
                 const x = d3.scaleLinear().domain([min, max]).nice().range([bounds.left, bounds.right]);
 
-                sim.force("x", d3.forceX(d => x(getter(d.r))).strength(0.25));
-                sim.force("y", d3.forceY(height / 2).strength(0.06));
+                // bin along metric axis and stack vertically inside each bin
+                const numBins = 18;
+                const binCounts = new Array(numBins).fill(0);
+
+                nodes.forEach(n => {
+                    const v = getter(n.r);
+                    if (!Number.isFinite(v)) {
+                        n.__bin = -1;
+                        return;
+                    }
+                    const denom = (max - min) || 1;
+                    let t = (v - min) / denom;
+                    t = clamp(0, t, 0.999999);
+                    const bi = Math.floor(t * numBins);
+                    n.__bin = bi;
+                    binCounts[bi]++;
+                });
+
+                const baseRowGap = 14;
+                const rowGap = baseRowGap * spacingFactor;
+                const binYOffset = new Array(numBins).fill(0);
+
+                for (let j = 0; j < numBins; j++) {
+                    const c = binCounts[j];
+                    const totalH = (c - 1) * rowGap;
+                    binYOffset[j] = height / 2 - totalH / 2;
+                }
+
+                const binIndexTracker = new Array(numBins).fill(0);
+
+                nodes.forEach(n => {
+                    if (n.__bin == null || n.__bin < 0) {
+                        n.x = rand(bounds.left, bounds.right);
+                        n.y = height / 2 + rand(-40, 40);
+                        return;
+                    }
+                    const j = n.__bin;
+                    const k = binIndexTracker[j]++;
+                    const denom = (max - min) || 1;
+                    const vCenter = min + ((j + 0.5) / numBins) * denom;
+                    n.x = x(vCenter);
+                    n.y = binYOffset[j] + k * rowGap;
+                });
+
+                gNodes.selectAll("g.avatar")
+                    .transition().duration(600)
+                    .attr("transform", d => {
+                        const s = d.hovered ? 1.25 : 1;
+                        return `translate(${d.x},${d.y}) scale(${s})`;
+                    });
 
                 drawMetricScale(x, label);
-                sim.alpha(0.8).restart();
             };
 
             if (mode === "sleep") lineBy(r => toNum(r[S.sleep]), "Sleep (hours) — less ◀︎ ▶︎ more");
@@ -383,12 +455,22 @@
             if (mode === "severity") lineBy(r => severity10(r, S), "Combined Severity (0–10) — lower ◀︎ ▶︎ higher");
         }
 
+        // wheel = spacing zoom in metric modes (controls vertical spacing, not actual zoom)
+        svg.on("wheel.spacing", (event) => {
+            if (currentMode === "roam") return;
+            event.preventDefault();
+            const dir = event.deltaY < 0 ? 1 : -1; // scroll up → more spacing
+            spacingFactor = clamp(0.5, spacingFactor + dir * 0.12, 3);
+            setMode(currentMode); // recompute layout with new spacing
+        });
+
         // toolbar hooks
         document.getElementById("btn-roam").onclick = () => setMode("roam");
         document.getElementById("btn-sleep").onclick = () => setMode("sleep");
         document.getElementById("btn-ex").onclick = () => setMode("exercise");
         document.getElementById("btn-sev").onclick = () => setMode("severity");
 
+        // start in Roam
         setMode("roam");
     }
 
