@@ -92,7 +92,9 @@ A pictograph layout representing students across **16 different majors**, colore
 - Hover tooltips reveal demographic info (major, year, average stress).
 - **Insight:** stress distribution is **widespread and cross-disciplinary**, not isolated to any one field.
 
-**V2** : I foucsed on connecting the dataset to the visualization, filter behaviour, and user interactive across the visualization. The main updates centered on correctly generating derived student data, fixing tooltip logic, implementing proper filtering for major and gender, and ensuring selection/highlighting works smoothly. Originally, in v1, I had implemented the visualization to output random data but now it follows the dataset correctly and uses the filters to output correct data to users.
+**V2** : I focused on connecting the dataset to the visualization, filter behaviour, and user interactive across the visualization. The main updates centered on correctly generating derived student data, fixing tooltip logic, implementing proper filtering for major and gender, and ensuring selection/highlighting works smoothly. Originally, in v1, I had implemented the visualization to output random data but now it follows the dataset correctly and uses the filters to output correct data to users.
+
+
 ---
 
 ## 🧮 Data
