@@ -7,8 +7,10 @@
 - Cynthia Liu — Visualization Lead  
 - Ayaan Asif — Front-End & Integration Lead  
 - Tahseen Rana — Data Lead  
-- Faraz Malik — Quality & Documentation Lead  
+- Faraz Malik — Quality & Documentation Lead 
 
+**Public Instances:**
+- [https://farazkaleemmalik.cyou/CSC316_final_project/](https://farazkaleemmalik.cyou/CSC316_final_project/)
 ---
 
 ## 📘 Project Overview
@@ -53,6 +55,13 @@ A circular, time-based visualization exploring the relationship between **sleep 
 - A **floating chip** displays a predicted stress score (lower = better).
 - **Design origin:** inspired by a hand-drawn sketch prototype.
 - **Insight:** optimal stress levels cluster around 7–8 hours of sleep near midnight.
+
+#### Updates for V2
+
+- Add sliders/interactivity
+- Connect vis to data
+- Add icons, transitions
+- Incorperate global filter
 
 ---
 
