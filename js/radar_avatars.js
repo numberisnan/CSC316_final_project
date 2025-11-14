@@ -11,7 +11,11 @@
     const rand = (a, b) => a + Math.random() * (b - a);
     const toNum = (x) => { const v = +x; return Number.isFinite(v) ? v : NaN; };
     const d3shuffle = d3.shuffle ? (a) => d3.shuffle(a.slice()) : (arr) => {
-        const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[a[i], a[j]] = [a[j], a[i]]; }
+        const a = arr.slice();
+        for (let i = a.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [a[i], a[j]] = [a[j], a[i]];
+        }
         return a;
     };
 
@@ -19,24 +23,42 @@
     function firstKey(rows, candidates) {
         const head = new Set(Object.keys(rows[0] || {}));
         for (const k of candidates) if (head.has(k)) return k;
-        const lower = {}; for (const k of head) lower[k.toLowerCase()] = k;
-        for (const k of candidates) { const hit = lower[k.toLowerCase()]; if (hit) return hit; }
+        const lower = {};
+        for (const k of head) lower[k.toLowerCase()] = k;
+        for (const k of candidates) {
+            const hit = lower[k.toLowerCase()];
+            if (hit) return hit;
+        }
         return null;
     }
+
     function buildSchema(rows) {
         if (!rows || !rows.length) return null;
-        const sleep = firstKey(rows, ["sleep_hours", "sleep", "sleep_duration", "avg_sleep_hours",
+        const sleep = firstKey(rows, [
+            "sleep_hours", "sleep", "sleep_duration", "avg_sleep_hours",
             "4._on_average,_how_many_hours_of_sleep_do_you_get_on_a_typical_day?",
             "how_many_hours_of_actual_sleep_did_you_get_on_an_average_for_the_past_month?_(maybe_different_from_the_number_of_hours_spent_in_bed)",
-            "what_is_your_average_hours_of_sleep_per_night?"]);
-        const exercise = firstKey(rows, ["exercise_hours", "avg_exercise", "exercise_hours_per_week", "exercise", "extracurricular_activities"]);
-        const anxiety = firstKey(rows, ["anxiety_score", "anxiety", "gad7", "anxiety_level"]);
-        const depression = firstKey(rows, ["depression_score", "depression", "phq9"]);
-        const stress = firstKey(rows, ["stress_score", "stress", "rate_your_academic_stress_index", "avg_stress", "stress_level"]);
+            "what_is_your_average_hours_of_sleep_per_night?"
+        ]);
+        const exercise = firstKey(rows, [
+            "exercise_hours", "avg_exercise", "exercise_hours_per_week", "exercise", "extracurricular_activities"
+        ]);
+        const anxiety = firstKey(rows, [
+            "anxiety_score", "anxiety", "gad7", "anxiety_level"
+        ]);
+        const depression = firstKey(rows, [
+            "depression_score", "depression", "phq9"
+        ]);
+        const stress = firstKey(rows, [
+            "stress_score", "stress", "rate_your_academic_stress_index", "avg_stress", "stress_level"
+        ]);
         return { sleep, exercise, anxiety, depression, stress };
     }
 
     // ---------- normalization + mood ----------
+    // norm.* are "goodness" scores in [0,1] used ONLY for color:
+    // - Sleep/exercise: more = better
+    // - Anxiety/depression/stress: higher scores = worse → flip so lower is better
     const norm = {
         sleep: v => clamp(0, (v ?? 0) / 9, 1),
         ex: v => clamp(0, (v ?? 0) / 12, 1),
@@ -44,27 +66,74 @@
         dep: v => clamp(0, 1 - (v ?? 0) / 10, 1),
         str: v => clamp(0, 1 - (v ?? 0) / 10, 1),
     };
-    const avg = (arr) => { const a = arr.filter(Number.isFinite); return a.length ? a.reduce((x, y) => x + y, 0) / a.length : NaN; };
+
+    const avg = (arr) => {
+        const a = arr.filter(Number.isFinite);
+        return a.length ? a.reduce((x, y) => x + y, 0) / a.length : NaN;
+    };
 
     function severity10(r, S) {
-        const vals = [toNum(r[S.stress]), toNum(r[S.anxiety]), toNum(r[S.depression])].filter(Number.isFinite);
+        const vals = [
+            toNum(r[S.stress]),
+            toNum(r[S.anxiety]),
+            toNum(r[S.depression])
+        ].filter(Number.isFinite);
         if (!vals.length) return 5;
         return clamp(0, avg(vals), 10); // 0..10 (worse → higher)
     }
 
+    // Avatar color: based only on combined stress/anxiety/depression severity
     function colorByMood(r, S) {
         // green (good) → red (bad)
         const t = clamp(0, severity10(r, S) / 10, 1);
         return d3.interpolateRdYlGn(1 - t);
     }
 
+    // Radar color: combines all 5 indices into a single well-being score.
+    // High sleep/exercise (good) push toward green;
+    // High anxiety/depression/stress (bad) push toward red.
+    function wellbeingColor(r, S) {
+        const vals = [];
+
+        const vSleep = toNum(r[S.sleep]);
+        const vEx = toNum(r[S.exercise]);
+        const vAnx = toNum(r[S.anxiety]);
+        const vDep = toNum(r[S.depression]);
+        const vStr = toNum(r[S.stress]);
+
+        if (Number.isFinite(vSleep)) vals.push(norm.sleep(vSleep)); // more sleep → better
+        if (Number.isFinite(vEx)) vals.push(norm.ex(vEx));       // more exercise → better
+        if (Number.isFinite(vAnx)) vals.push(norm.anx(vAnx));     // lower anxiety → better
+        if (Number.isFinite(vDep)) vals.push(norm.dep(vDep));     // lower depression → better
+        if (Number.isFinite(vStr)) vals.push(norm.str(vStr));     // lower stress → better
+
+        const wellbeing = vals.length ? clamp(0, avg(vals), 1) : 0.5;
+        // 0 → red (poor well-being), 1 → green (good well-being)
+        return d3.interpolateRdYlGn(wellbeing);
+    }
+
+    // Radar radii: show *actual* values.
+    // - Sleep/Exercise: higher hours → further out (good).
+    // - Anxiety/Depression/Stress: higher severity → further out (bad).
     function metricsForRow(r, S) {
+        const sleepV = toNum(r[S.sleep]);
+        const exV = toNum(r[S.exercise]);
+        const anxV = toNum(r[S.anxiety]);
+        const depV = toNum(r[S.depression]);
+        const strV = toNum(r[S.stress]);
+
+        const radius = {
+            sleep: v => clamp(0, (v ?? 0) / 9, 1),
+            ex: v => clamp(0, (v ?? 0) / 12, 1),
+            sev: v => clamp(0, (v ?? 0) / 10, 1) // generic 0–10-ish scale
+        };
+
         return [
-            { label: "Sleep (hrs)", v: norm.sleep(toNum(r[S.sleep])) },
-            { label: "Exercise (hrs/wk)", v: norm.ex(toNum(r[S.exercise])) },
-            { label: "Anxiety", v: norm.anx(toNum(r[S.anxiety])) },
-            { label: "Depression", v: norm.dep(toNum(r[S.depression])) },
-            { label: "Stress", v: norm.str(toNum(r[S.stress])) },
+            { label: "Sleep (hrs)", v: radius.sleep(sleepV) },
+            { label: "Exercise (hrs/wk)", v: radius.ex(exV) },
+            { label: "Anxiety", v: radius.sev(anxV) },
+            { label: "Depression", v: radius.sev(depV) },
+            { label: "Stress", v: radius.sev(strV) },
         ];
     }
 
@@ -82,30 +151,49 @@
     }
 
     // ---------- mini spider chart (bigger) ----------
-    function drawMiniRadar(gOverlay, x, y, row, S) {
-        const color = colorByMood(row, S);
+    // keep overlay inside bounds
+    function drawMiniRadar(gOverlay, x, y, row, S, width, height) {
+        const color = wellbeingColor(row, S);
         const metrics = metricsForRow(row, S);
         const R = 90; // bigger than original 60
         const angle = d3.scaleLinear().domain([0, metrics.length]).range([0, 2 * Math.PI]);
-        const radial = (v, i) => { const a = angle(i) - Math.PI / 2, rr = v * R; return [Math.cos(a) * rr, Math.sin(a) * rr]; };
-        const pathFn = d3.line().x(d => d[0]).y(d => d[1]).curve(d3.curveLinearClosed);
+        const radial = (v, i) => {
+            const a = angle(i) - Math.PI / 2, rr = v * R;
+            return [Math.cos(a) * rr, Math.sin(a) * rr];
+        };
+        const pathFn = d3.line()
+            .x(d => d[0])
+            .y(d => d[1])
+            .curve(d3.curveLinearClosed);
 
         gOverlay.selectAll("*").remove();
-        const grp = gOverlay.append("g").attr("transform", `translate(${x},${y})`).style("pointer-events", "none");
+
+        const safeX = within(x, 40, width - 40);
+        const safeY = within(y, 40, height - 40);
+
+        const grp = gOverlay.append("g")
+            .attr("transform", `translate(${safeX},${safeY})`)
+            .style("pointer-events", "none");
 
         grp.append("circle")
             .attr("r", R + 12)
             .attr("fill", "rgba(255,255,255,0.96)")
             .attr("stroke", "rgba(0,0,0,0.08)")
             .attr("stroke-width", 1.6);
+
         for (let i = 1; i <= 4; i++) grp.append("circle")
             .attr("r", (R / 4) * i)
             .attr("fill", "none")
             .attr("stroke", "#444")
             .attr("opacity", 0.14);
+
         metrics.forEach((m, i) => {
             const a = angle(i) - Math.PI / 2, xx = Math.cos(a) * R, yy = Math.sin(a) * R;
-            grp.append("line").attr("x1", 0).attr("y1", 0).attr("x2", xx).attr("y2", yy).attr("stroke", "#444").attr("opacity", 0.16);
+            grp.append("line")
+                .attr("x1", 0).attr("y1", 0)
+                .attr("x2", xx).attr("y2", yy)
+                .attr("stroke", "#444")
+                .attr("opacity", 0.16);
         });
 
         grp.append("path")
@@ -115,9 +203,14 @@
 
         metrics.forEach((m, i) => {
             const a = angle(i) - Math.PI / 2, rr = R + 16;
-            grp.append("text").attr("x", Math.cos(a) * rr).attr("y", Math.sin(a) * rr)
-                .attr("text-anchor", "middle").attr("dominant-baseline", "middle")
-                .attr("font-size", 10.5).attr("fill", "#222").text(m.label.split(" ")[0]);
+            grp.append("text")
+                .attr("x", Math.cos(a) * rr)
+                .attr("y", Math.sin(a) * rr)
+                .attr("text-anchor", "middle")
+                .attr("dominant-baseline", "middle")
+                .attr("font-size", 10.5)
+                .attr("fill", "#222")
+                .text(m.label.split(" ")[0]);
         });
     }
 
@@ -125,7 +218,9 @@
     function drawWalker(g, nodeDatum) {
         const color = nodeDatum.color;
         const strokeW = 2.4;
-        const body = g.append("g").attr("class", "walker").attr("transform", "scale(0.92)");
+        const body = g.append("g")
+            .attr("class", "walker")
+            .attr("transform", "scale(0.92)");
 
         const headStrokeColor = d3.interpolateRgb(color, "#333")(0.35);
         body.append("circle")
@@ -212,14 +307,68 @@
         }
 
         const { width, height, lockedHeight } = lockPanel(containerSel);
-        svg = rootSel.append("svg").attr("width", width).attr("height", height).style("display", "block");
+        svg = rootSel.append("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .style("display", "block");
         gNodes = svg.append("g");
         gOverlay = svg.append("g").style("pointer-events", "none");
+
+        // --- stick-figure legend (color → severity) ---
+        (function drawLegend() {
+            const PAD = 18;
+            const legend = svg.append("g")
+                .attr("class", "avatar-legend")
+                .attr("transform", `translate(${PAD + 6},${height - 80})`);
+
+            legend.append("text")
+                .attr("x", 0)
+                .attr("y", 0)
+                .attr("fill", "#2b2116")
+                .attr("font-size", 11)
+                .attr("font-weight", 700)
+                .text("Stick figure color = combined severity");
+
+            const levels = [
+                { label: "Low", t: 0.18 },
+                { label: "Moderate", t: 0.50 },
+                { label: "High", t: 0.85 }
+            ];
+
+            const row = legend.selectAll("g.level")
+                .data(levels)
+                .enter()
+                .append("g")
+                .attr("class", "level")
+                .attr("transform", (d, i) => `translate(0,${16 + i * 18})`);
+
+            row.append("circle")
+                .attr("cx", 6)
+                .attr("cy", -4)
+                .attr("r", 6)
+                .attr("fill", d => d3.interpolateRdYlGn(1 - d.t))
+                .attr("stroke", "#333")
+                .attr("stroke-width", 0.8);
+
+            row.append("text")
+                .attr("x", 18)
+                .attr("y", -1)
+                .attr("fill", "#2b2116")
+                .attr("font-size", 10.5)
+                .text(d => d.label + " severity");
+        })();
 
         const PAD = 18, COLLIDE_R = 12, ROAM_STRENGTH = 0.06;
         const N = Math.min(rows.length, 250);
         const nodes = d3shuffle(rows).slice(0, N).map((r, i) => ({
-            id: i, r, color: colorByMood(r, S), tx: 0, ty: 0, hovered: false, x: 0, y: 0
+            id: i,
+            r,
+            color: colorByMood(r, S),
+            tx: 0,
+            ty: 0,
+            hovered: false,
+            x: 0,
+            y: 0
         }));
 
         const bounds = { left: PAD, right: width - PAD, top: PAD, bottom: height - PAD };
@@ -269,29 +418,6 @@
             }
         }
 
-        function drawStressRipple(d) {
-            const cx = d.x ?? width / 2;
-            const cy = d.y ?? height / 2;
-            const sev = severity10(d.r, S); // 0–10
-            const maxR = 35 + sev * 4;
-
-            const ripple = gOverlay.append("circle")
-                .attr("cx", cx)
-                .attr("cy", cy)
-                .attr("r", 0)
-                .attr("fill", "none")
-                .attr("stroke", d.color)
-                .attr("stroke-width", 2)
-                .attr("opacity", 0.75);
-
-            ripple.transition()
-                .duration(900)
-                .ease(d3.easeCubicOut)
-                .attr("r", maxR)
-                .attr("opacity", 0)
-                .remove();
-        }
-
         gNodes.selectAll("g.avatar")
             .data(nodes, d => d.id)
             .join(enter => {
@@ -307,17 +433,20 @@
                     .on("mouseenter", (e, d) => {
                         setHover(d.id);
                         gOverlay.selectAll("*").remove();
-                        drawMiniRadar(gOverlay, d.x ?? width / 2, d.y ?? height / 2, d.r, S);
+                        // pass width/height so radar has bounds
+                        drawMiniRadar(
+                            gOverlay,
+                            d.x ?? width / 2,
+                            d.y ?? height / 2,
+                            d.r,
+                            S,
+                            width,
+                            height
+                        );
                     })
                     .on("mouseleave", () => {
                         setHover(null);
                         gOverlay.selectAll("*").remove();
-                    })
-                    .on("click", (e, d) => {
-                        setHover(d.id);
-                        gOverlay.selectAll("*").remove();
-                        drawMiniRadar(gOverlay, d.x ?? width / 2, d.y ?? height / 2, d.r, S);
-                        drawStressRipple(d);
                     });
 
                 return gEnter;
@@ -360,7 +489,9 @@
             const axisY = height - 24;
 
             const axis = d3.axisBottom(xScale).ticks(6).tickSizeOuter(0);
-            const gAxis = gOverlay.append("g").attr("transform", `translate(0,${axisY})`).call(axis);
+            const gAxis = gOverlay.append("g")
+                .attr("transform", `translate(0,${axisY})`)
+                .call(axis);
             gAxis.selectAll("path, line").attr("stroke", "rgba(0,0,0,0.35)");
             gAxis.selectAll("text").attr("fill", "#2b2116").attr("font-size", 11);
 
@@ -414,14 +545,20 @@
                     binCounts[bi]++;
                 });
 
+                // multi-column layout per bin to avoid vertical overflow
                 const baseRowGap = 14;
                 const rowGap = baseRowGap * spacingFactor;
+
+                const viewHeight = bounds.bottom - bounds.top;
+                const maxRows = Math.max(1, Math.floor(viewHeight / rowGap));
+
                 const binYOffset = new Array(numBins).fill(0);
+                const midY = (bounds.top + bounds.bottom) / 2;
 
                 for (let j = 0; j < numBins; j++) {
-                    const c = binCounts[j];
-                    const totalH = (c - 1) * rowGap;
-                    binYOffset[j] = height / 2 - totalH / 2;
+                    const rowsInBin = Math.min(binCounts[j], maxRows);
+                    const totalH = (rowsInBin - 1) * rowGap;
+                    binYOffset[j] = midY - totalH / 2;
                 }
 
                 const binIndexTracker = new Array(numBins).fill(0);
@@ -429,15 +566,33 @@
                 nodes.forEach(n => {
                     if (n.__bin == null || n.__bin < 0) {
                         n.x = rand(bounds.left, bounds.right);
-                        n.y = height / 2 + rand(-40, 40);
+                        n.y = midY + rand(-40, 40);
                         return;
                     }
                     const j = n.__bin;
                     const k = binIndexTracker[j]++;
+
                     const denom = (max - min) || 1;
                     const vCenter = min + ((j + 0.5) / numBins) * denom;
-                    n.x = x(vCenter);
-                    n.y = binYOffset[j] + k * rowGap;
+                    const vCenterX = x(vCenter);
+
+                    const cols = Math.max(1, Math.ceil(binCounts[j] / maxRows));
+                    const col = Math.floor(k / maxRows);     // which column
+                    const rowIdx = k % maxRows;              // which row within that column
+
+                    const colOffset = COLLIDE_R * 2.6;
+                    const xOffset = (col - (cols - 1) / 2) * colOffset;
+
+                    n.x = within(
+                        vCenterX + xOffset,
+                        bounds.left + COLLIDE_R,
+                        bounds.right - COLLIDE_R
+                    );
+                    n.y = within(
+                        binYOffset[j] + rowIdx * rowGap,
+                        bounds.top + COLLIDE_R,
+                        bounds.bottom - COLLIDE_R
+                    );
                 });
 
                 gNodes.selectAll("g.avatar")

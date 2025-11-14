@@ -67,8 +67,8 @@ An animated environment where each student is represented as a **stick-figure av
     - Exercise
     - Depression
     - Anxiety
-- ***Improvements based on TA feedback:** added a scrolling feature which spreads out the stick figures after they are sorted based on metric to easily hover over each without overlapping. Made the head sizes larger and implemented the colour depending on stress severity*
-- **Insight:** humanizes data — students are no longer points, but individuals with multidimensional traits.
+- ***Improvements based on TA feedback:** added a scrolling feature which spreads out the stick figures after they are sorted based on metric to easily hover over each without overlapping. Made the head sizes larger and implemented the colour depending on stress severity. Also added left and right columns if the stick figures overflow*
+- **Insight:** humanizes data — students are no longer points, but individuals with multidimensional traits. The radar maps show an individual's well being level with the groupings helping the user understand how their peers are faring.
 
 ---
 
