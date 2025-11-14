@@ -212,7 +212,7 @@
         const PAD = 18, COLLIDE_R = 12, ROAM_STRENGTH = 0.06;
         const N = Math.min(rows.length, 250);
         const nodes = d3shuffle(rows).slice(0, N).map((r, i) => ({
-            id: i, r, color: colorByMood(r, S), tx: 0, ty: 0
+            id: i, r, color: colorByMood(r, S), tx: 0, ty: 0, hovered: false
         }));
 
         const bounds = { left: PAD, right: width - PAD, top: PAD, bottom: height - PAD };
@@ -230,10 +230,44 @@
                 gNodes.selectAll("g.avatar").attr("transform", d => {
                     d.x = within(d.x ?? width / 2, bounds.left, bounds.right);
                     d.y = within(d.y ?? height / 2, bounds.top, bounds.bottom);
+                    const s = d.hovered ? 1.25 : 1;
                     return `translate(${d.x},${d.y})`;
                 });
             });
 
+        function setHover(activeId = null) {
+            nodes.forEach(n => {
+                n.hovered = (activeId !== null && n.id === activeId);
+            });
+
+            gNodes.selectAll("g.avatar")
+                .transition().duration(180)
+                .style("opacity", d => (activeId === null || d.id === activeId) ? 1 : 0.15);
+
+            sim.alpha(0.3).restart();
+        }
+        function drawStressRipple(d) {
+            const cx = d.x ?? width / 2;
+            const cy = d.y ?? height / 2;
+            const sev = severity10(d.r, S); // 0–10
+            const maxR = 35 + sev * 4;      // bigger ring for higher severity
+
+            const ripple = gOverlay.append("circle")
+                .attr("cx", cx)
+                .attr("cy", cy)
+                .attr("r", 0)
+                .attr("fill", "none")
+                .attr("stroke", d.color)
+                .attr("stroke-width", 2)
+                .attr("opacity", 0.75);
+
+            ripple.transition()
+                .duration(900)
+                .ease(d3.easeCubicOut)
+                .attr("r", maxR)
+                .attr("opacity", 0)
+                .remove();
+        }
         const sel = gNodes.selectAll("g.avatar")
             .data(nodes, d => d.id)
             .join(enter => {
@@ -248,13 +282,19 @@
 
                 gEnter
                     .on("mouseenter", (e, d) => {
+                        setHover(d.id);                     // spotlight & scale
                         gOverlay.selectAll("*").remove();
                         drawMiniRadar(gOverlay, d.x ?? width / 2, d.y ?? height / 2, d.r, S);
                     })
-                    .on("mouseleave", () => gOverlay.selectAll("*").remove())
+                    .on("mouseleave", () => {
+                        setHover(null);                     // reset
+                        gOverlay.selectAll("*").remove();
+                    })
                     .on("click", (e, d) => {
+                        setHover(d.id);                     // keep them highlighted
                         gOverlay.selectAll("*").remove();
                         drawMiniRadar(gOverlay, d.x ?? width / 2, d.y ?? height / 2, d.r, S);
+                        drawStressRipple(d);                // NEW: ripple
                     });
 
                 return gEnter;
