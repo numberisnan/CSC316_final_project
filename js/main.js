@@ -27,7 +27,10 @@
 
     if (window.renderTriangle) window.renderTriangle(data);
     if (window.renderGarden) window.renderGarden(data);
-    if (window.renderSleepOrbit) window.renderSleepOrbit(data);
+    if (window.renderSleepOrbit && window.updateSleepOrbit) {
+        window.renderSleepOrbit(data);
+        window.updateSleepOrbit(data);
+    }
     if (window.renderAvatar) window.renderAvatar(data);
     if (window.renderClassroom) window.renderClassroom(data);
 

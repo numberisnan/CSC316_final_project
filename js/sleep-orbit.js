@@ -18,69 +18,81 @@
 
     const ticksize = 10;
 
-    const sliders = [{
-        angle: -1
+    function inputValueToAngle(value) {
+        return -Math.PI + ((value / 16) * Math.PI); // Map 0-16 to 0 to -PI radians
+    }
+
+    const sliders = [{ // From last to first
+        angle: inputValueToAngle(document.getElementById("sleep-orbit-wake-up-time").value) // Read initial value from input
     },
     {
-        angle: -2
+        angle: inputValueToAngle(document.getElementById("sleep-orbit-sleep-start-time").value)
     },
     { 
-        angle: -3
+        angle: inputValueToAngle(document.getElementById("sleep-orbit-time-in-bed").value)
     }]
 
-    function renderSleepOrbit() {
-        root = d3.select(container)
+    const sunset_colors = ["#BF3475","#50366F","#1F214D","#FFCE61"].reverse()
 
-        const svg = root.append("svg")
-            .attr("width", width)
-            .attr("height", height)
-            .attr("id", "sleep-orbit-svg")
-            .append("g")
-            .attr("transform", "translate(" + cx +  "," + cy + ")");
-        sunset_colors = ["#BF3475","#50366F","#1F214D","#FFCE61"].reverse()
+    function sliderToImage(i) {
+        if (i == 0) {
+            return "/images/sleep-orbit/sleep.svg";
+        } else if (i == 1) {
+            return "/images/sleep-orbit/bed.svg";
+        } else {
+            return null;
+        }
+    }
 
+    function computeArcsFromSliders(sliders) {
         const arcs = d3.range(sliders.length - 1).map(i => ({
             color: sunset_colors[1+i],
             startAngle: sliders[i].angle + Math.PI / 2,
-            endAngle: sliders[i + 1].angle + Math.PI / 2
+            endAngle: sliders[i + 1].angle + Math.PI / 2,
+            image: sliderToImage(i)
         }));
         
         arcs.push({
             color: sunset_colors[0],
             startAngle: startAngle + Math.PI / 2,
-            endAngle: sliders[0].angle + Math.PI / 2
+            endAngle: sliders[0].angle + Math.PI / 2,
+            image: "/images/sleep-orbit/awake.svg"
         }); // First slice
 
         arcs.push({
             color: sunset_colors[3],
             startAngle: sliders[sliders.length-1].angle + Math.PI / 2,
-            endAngle: endAngle + Math.PI / 2
+            endAngle: endAngle + Math.PI / 2,
+            image: "/images/sleep-orbit/tired.svg",
         }); // Last slice
+        return arcs;
+    }
 
-        console.log(arcs)
+    const arcGen = d3.arc() // Start/end angle already set in consts
+    .innerRadius(innerR)
+    .outerRadius(outerR)
 
-        const arcGen = d3.arc() // Start/end angle already set in data
-            .innerRadius(innerR)
-            .outerRadius(outerR)
-        
+    function renderSleepOrbit() {
+        // Creates the persistent SVG elements of the visualization
+        root = d3.select(container)
+
+        const svg = root.insert("svg", ":first-child") // Insert before other content
+            .attr("width", width)
+            .attr("height", height)
+            .attr("id", "sleep-orbit-svg")
+            .append("g")
+            .attr("transform", "translate(" + cx +  "," + cy + ")");
+
+        //console.log(arcs)
+        const arcs = computeArcsFromSliders(sliders);
 
         svg.append("g") // Add SVG group for arcs
             .selectAll("path")
             .data(arcs)
             .enter()
             .append("path")
-            .attr("d", d => arcGen(d))
+            .attr("class", "sleep-orbit-arc")
             .attr("fill", d => d.color);
-
-        // draw sliders
-        svg.selectAll("circle")
-            .data(sliders)
-            .enter()
-            .append("circle")
-            .attr("cx", s => slider_radius * Math.cos(s.angle))
-            .attr("cy", s => slider_radius * Math.sin(s.angle))
-            .attr("r", 10)
-            .attr("fill", "white");
         
         const tick_angles = d3.range(17).map(i => { // 16 segments for 16 hours, so 17 ticks
             const time = (36 - i)%24 // Hour in 24H time (starting at 8pm), reversed
@@ -125,14 +137,79 @@
             .text(t => t.time)
             .attr("fill", "grey")
             .attr("font-size", 7);
-
-        dummy_data = []
     
-        svg.append("g")
+        svg.append("g") // Draw arc icons
             .selectAll("path")
-            .data()
-            
+            .data(arcs)
+            .enter()
+            .append("image")
+            .attr("xlink:href", d => d.image)
+            .attr("class", "sleep-orbit-arc-icon")
+            .attr("width", 30)
+            .attr("height", 30);
+    }
+
+    function updateSleepOrbit(data) {
+        const arcs = computeArcsFromSliders(sliders);
+
+        d3.selectAll(".sleep-orbit-arc")
+            .data(arcs)
+            .transition()
+            .duration(200)
+            .attr("d", d => arcGen(d));
+
+        d3.selectAll(".sleep-orbit-arc-icon")
+            .data(arcs)
+            .transition()
+            .duration(200)
+            .attr("x", d => {
+                const angle = (d.startAngle + d.endAngle) / 2 - Math.PI / 2;
+                return slider_radius * Math.cos(angle) - 15;
+            })
+            .attr("y", d => {
+                const angle = (d.startAngle + d.endAngle) / 2 - Math.PI / 2;
+                return slider_radius * Math.sin(angle) - 15;
+            });
+
     }
     
     window.renderSleepOrbit = renderSleepOrbit;
+    window.updateSleepOrbit = updateSleepOrbit;
+
+    // Attach event listeners to inputs, only done once
+    document.getElementById("sleep-orbit-time-in-bed").addEventListener("input", function() {
+        const value = parseFloat(this.value);
+        const new_angle = inputValueToAngle(value); // Map 0-16 to 0 to -PI radians
+        if (new_angle > sliders[1].angle) {
+            // Undo change
+            this.value = ((-sliders[1].angle + Math.PI) / Math.PI) * 16;
+            return;
+        }
+        sliders[2].angle = inputValueToAngle(value);
+        updateSleepOrbit();
+    });
+
+    document.getElementById("sleep-orbit-sleep-start-time").addEventListener("input", function() {
+        const value = parseFloat(this.value);
+        const new_angle = inputValueToAngle(value); // Map 0-16 to 0 to -PI radians
+        if (new_angle < sliders[2].angle || new_angle > sliders[0].angle) {
+            // Undo change
+            this.value = ((-sliders[1].angle + Math.PI) / Math.PI) * 16;
+            return;
+        }
+        sliders[1].angle = inputValueToAngle(value);
+        updateSleepOrbit();
+    });
+
+    document.getElementById("sleep-orbit-wake-up-time").addEventListener("input", function() {
+        const value = parseFloat(this.value);
+        const new_angle = inputValueToAngle(value); // Map 0-16 to 0 to -PI radians
+        if (new_angle < sliders[1].angle) {
+            // Undo change
+            this.value = ((-sliders[0].angle + Math.PI) / Math.PI) * 16;
+            return;
+        }
+        sliders[0].angle = inputValueToAngle(value);
+        updateSleepOrbit();
+    });
 })()
