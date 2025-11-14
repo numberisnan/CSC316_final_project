@@ -143,11 +143,20 @@
         <div class="panel">
             <h3 class="section-title">Sleep Orbit Map (Novel)</h3>
             <div class="visbox">
-                <div id="sleep-orbit-vis"></div>
+                <div id="sleep-orbit-vis">
+                   <div id="sleep-orbit-inputs" style="text-align: center;">
+                        <input type="range" id="sleep-orbit-time-in-bed" min="0" max="16" step="0.5" value="2">
+                        <label for="sleep-orbit-time-in-bed">Time in Bed</label>
+                        <input type="range" id="sleep-orbit-sleep-start-time" min="0" max="16" step="0.5" value="4">
+                        <label for="sleep-orbit-sleep-start-time">Sleep Start Time</label>
+                        <input type="range" id="sleep-orbit-wake-up-time" min="0" max="16" step="0.5" value="6">
+                        <label for="sleep-orbit-wake-up-time">Wake Up Time</label>
+                    </div> 
+                </div>
+                
             </div>
             <p class="muted">
-                Polar scatter: angle = sleep start time, radius = stress score; color = anxiety. Lowest stress appears around
-                7–8 hours of sleep near midnight.
+                Sections are awake time, time to fall asleep, sleep, and wake up. Various stats are shown and adjust as you move the sliders to simulate different sleep patterns.
             </p>
         </div>
 

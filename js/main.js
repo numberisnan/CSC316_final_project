@@ -15,6 +15,45 @@
 
     const data = await loadCSV();
 
+    // Sleep-orbit computed columns
+    data.forEach(d => {
+        let bed_time_string = d["when_have_you_usually_gone_to_bed_in_the_past_month?"];
+        // Convert time string to hours after 8pm
+        let bed_time = bed_time_string.split(" ")[0]; // Get rid of AM/PM
+        let is_pm = bed_time_string.split(" ")[1] === "PM";
+        let bed_time_after_8pm = Number(bed_time.split(":")[0]) + Number(bed_time.split(":")[1]) / 60 + (is_pm ? 12 : 0) + 4;
+
+        d.bed_time_after_8pm = bed_time_after_8pm % 24; // Nearest half-hour
+
+        const time_in_bed_string = d["how_long_has_it_taken_you_to_fall_asleep_each_night_in_the_past_month?"];
+        let time_in_bed;
+        if (time_in_bed_string == "under 30 minutes") {
+            time_in_bed = 0.3;
+        } else if (time_in_bed_string == "30 minutes") {
+            time_in_bed = 0.5;
+        } else if (time_in_bed_string == "1 hour") {
+            time_in_bed = 1.0;
+        } else if (time_in_bed_string == "1.5 hours") {
+            time_in_bed = 1.5;
+        } else if (time_in_bed_string == "2 hours") {
+            time_in_bed = 2.0;
+        } else if (time_in_bed_string == "More time than 2 hours") {
+            time_in_bed = 2.5;
+        } else {
+            time_in_bed = null;
+        }
+        d.sleep_time_after_8pm = d.bed_time_after_8pm + time_in_bed;
+
+        const time_up_string = d["what_time_have_you_usually_gotten_up_in_the_morning_in_the_past_month?"];
+
+        let time_up = time_up_string.split(" ")[0]; // Get rid of AM/PM
+        let is_up_pm = time_up_string.split(" ")[1] === "PM";
+        let time_up_after_8pm = (Number(time_up.split(":")[0]) % 12) + Number(time_up.split(":")[1]) / 60 + (is_up_pm ? 12 : 0) + 4;
+        d.wake_up_time_after_8pm = time_up_after_8pm % 24;
+    });
+
+    console.log("Data loaded:", data);
+
     // setup controls
     setupControls(data);
 
@@ -27,7 +66,10 @@
 
     if (window.renderTriangle) window.renderTriangle(data);
     if (window.renderGarden) window.renderGarden(data);
-    if (window.renderSleepOrbit) window.renderSleepOrbit(data);
+    if (window.renderSleepOrbit && window.updateSleepOrbit) {
+        window.renderSleepOrbit(data);
+        window.updateSleepOrbit(data);
+    }
     if (window.renderAvatar) window.renderAvatar(data);
     if (window.renderClassroom) window.renderClassroom(data);
 
