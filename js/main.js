@@ -163,6 +163,7 @@
         );
         if (window.renderTriangle) window.renderTriangle(subset);
         if (window.renderGarden) window.renderGarden(subset);
+        if (window.updateClassroom) window.updateClassroom(subset);
     }
     // --- end enhancements ---
 
