@@ -206,6 +206,12 @@
         if (window.renderTriangle) window.renderTriangle(subset);
         if (window.renderGarden) window.renderGarden(subset);
         if (window.updateClassroom) window.updateClassroom(subset);
+        if (window.updateSleepOrbit && window.renderSleepOrbit) {
+            // rerender sleep orbit with subset
+            d3.select("#sleep-orbit-svg").remove();
+            window.renderSleepOrbit(subset);
+            window.updateSleepOrbit(subset);
+        };
     }
     // --- end enhancements ---
 
